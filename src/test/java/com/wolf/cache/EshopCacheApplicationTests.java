@@ -1,5 +1,6 @@
 package com.wolf.cache;
 
+import com.wolf.cache.zk.ZookeeperSession;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -11,6 +12,8 @@ public class EshopCacheApplicationTests {
 
 	@Test
 	public void contextLoads() {
+		ZookeeperSession zkSession = ZookeeperSession.getInstance();
+		System.out.println(zkSession);
 	}
 
 }

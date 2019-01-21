@@ -5,9 +5,15 @@ import com.alibaba.fastjson.JSONObject;
 import com.wolf.cache.model.ProductInfo;
 import com.wolf.cache.service.CacheService;
 import com.wolf.cache.spring.SpringContext;
+import com.wolf.cache.zk.ZookeeperSession;
 import kafka.consumer.ConsumerIterator;
 import kafka.consumer.KafkaStream;
 import lombok.extern.slf4j.Slf4j;
+import org.joda.time.DateTime;
+import org.joda.time.format.DateTimeFormat;
+import org.joda.time.format.DateTimeFormatter;
+
+import java.util.Date;
 
 /**
  * Kafka消息处理线程
@@ -18,6 +24,8 @@ public class KafkaMessageProcessor implements Runnable {
     private static final String PRODUCT_INFO_SERVICE = "product_info_service";
 
     private static final String SHOP_INFO_SERVICE = "shop_info_service";
+
+    private static DateTimeFormatter dateTimeFormatter = DateTimeFormat.forPattern("yyyy-MM-dd HH:mm:ss");
 
     private CacheService cacheService;
 
@@ -68,9 +76,32 @@ public class KafkaMessageProcessor implements Runnable {
         cacheService.saveProductInfoToLocalCache(productInfo);
         log.info("### 更新本地缓存完毕 ###");
 
+        // 在将数据直接写入到redis缓存之前，应该先获取一个zk的分布式锁
+        ZookeeperSession zookeeperSession = ZookeeperSession.getInstance();
+        zookeeperSession.acquireDistributedLock(productId);
+
         // 更新redis缓存
+        // 先从redis中获取数据
+        ProductInfo existedProductInfo = cacheService.getProductInfoFromLocalCache(productId);
+        if (existedProductInfo != null){
+            // 比较当前数据的版本和已有数据的时间版本是新还是旧
+            Date currentTime = dateTimeFormatter.parseDateTime(productInfo.getModifiedTime()).toDate();
+            Date existedTime = dateTimeFormatter.parseDateTime(existedProductInfo.getModifiedTime()).toDate();
+
+            if (currentTime.before(existedTime)) {
+                log.info("### product current date = {} is before existed date = {} ###", currentTime, existedTime);
+                return;
+            }
+            log.info("### product current date = {} is after existed date = {} ###", currentTime, existedTime);
+        } else {
+            log.info("### existed product info is null ###");
+        }
+
         cacheService.saveProductInfoToRedisCache(productInfo);
         log.info("### 更新Redis缓存完毕 ###");
+
+        // 释放分布式锁
+        zookeeperSession.releaseDistributedLock(productId);
     }
 
     /**

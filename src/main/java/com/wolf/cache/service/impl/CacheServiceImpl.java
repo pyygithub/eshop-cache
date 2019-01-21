@@ -12,6 +12,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.annotation.CachePut;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
+import org.thymeleaf.util.StringUtils;
 
 @Service("cacheService")
 @Slf4j
@@ -73,8 +74,10 @@ public class CacheServiceImpl implements CacheService {
         String key = PRODUCT_INFO_PREFIX + productId;
         String productInfoString = redisService.get(key);
         log.info("### getProductInfoFromRedisCache 从redis缓存查询商品信息， productInfoString={} ###",productInfoString);
-
-        return JSONObject.parseObject(productInfoString, ProductInfo.class);
+        if (!StringUtils.isEmpty(productInfoString)) {
+            return JSONObject.parseObject(productInfoString, ProductInfo.class);
+        }
+        return null;
     }
 
     @Override
@@ -82,7 +85,9 @@ public class CacheServiceImpl implements CacheService {
         String key = SHOP_INFO_PREFIX + shopId;
         String shopInfoString = redisService.get(key);
         log.info("### getProductInfoFromRedisCache 从redis缓存查询店铺信息， shopInfoString={} ###",shopInfoString);
-
-        return JSONObject.parseObject(shopInfoString, ShopInfo.class);
+        if (!StringUtils.isEmpty(shopInfoString)) {
+            return JSONObject.parseObject(shopInfoString, ShopInfo.class);
+        }
+        return null;
     }
 }
